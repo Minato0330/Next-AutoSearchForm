@@ -26,7 +26,7 @@ export default function AnalyzePage() {
         .filter((c) => c.name && c.url);
 
       if (companyList.length === 0) {
-        setError("Please enter at least one company");
+        setError("少なくとも1社を入力してください");
         setLoading(false);
         return;
       }
@@ -38,13 +38,13 @@ export default function AnalyzePage() {
       });
 
       if (!response.ok) {
-        throw new Error("Analysis failed");
+        throw new Error("分析に失敗しました");
       }
 
       const data = await response.json();
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "不明なエラー");
     } finally {
       setLoading(false);
     }
@@ -53,19 +53,19 @@ export default function AnalyzePage() {
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold mb-4">Contact Form Analyzer</h1>
+        <h1 className="text-4xl font-bold mb-4">お問い合わせフォーム一括分析</h1>
         <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-          Analyze contact forms on company websites
+          複数企業のお問い合わせフォームを一括で分析します
         </p>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-          <h2 className="text-2xl font-semibold mb-4">Enter Companies</h2>
+          <h2 className="text-2xl font-semibold mb-4">企業リストを入力</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Format: Company Name, URL (one per line)
+            形式: 企業名, URL（1行に1社）
           </p>
           <textarea
             className="w-full h-48 p-4 border rounded-lg font-mono text-sm bg-gray-50 dark:bg-gray-900"
-            placeholder="Example Corp, https://example.com&#10;Test Company, https://test.com"
+            placeholder="株式会社サンプル, https://example.com&#10;テスト株式会社, https://test.com"
             value={companies}
             onChange={(e) => setCompanies(e.target.value)}
           />
@@ -74,7 +74,7 @@ export default function AnalyzePage() {
             disabled={loading}
             className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {loading ? "Analyzing..." : "Start Analysis"}
+            {loading ? "分析中..." : "分析を開始"}
           </button>
         </div>
 
@@ -86,30 +86,30 @@ export default function AnalyzePage() {
 
         {result && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4">Results</h2>
-            
+            <h2 className="text-2xl font-semibold mb-4">分析結果</h2>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded">
                 <div className="text-2xl font-bold">{result.totalCompanies}</div>
-                <div className="text-sm">Total Companies</div>
+                <div className="text-sm">総企業数</div>
               </div>
               <div className="bg-green-100 dark:bg-green-900 p-4 rounded">
                 <div className="text-2xl font-bold">
                   {result.formDiscoverySuccessRate.toFixed(1)}%
                 </div>
-                <div className="text-sm">Form Discovery</div>
+                <div className="text-sm">フォーム検出率</div>
               </div>
               <div className="bg-purple-100 dark:bg-purple-900 p-4 rounded">
                 <div className="text-2xl font-bold">
                   {result.dynamicContentSuccessRate.toFixed(1)}%
                 </div>
-                <div className="text-sm">Dynamic Content</div>
+                <div className="text-sm">動的コンテンツ</div>
               </div>
               <div className="bg-yellow-100 dark:bg-yellow-900 p-4 rounded">
                 <div className="text-2xl font-bold">
                   {result.fillabilityBreakdown.full}
                 </div>
-                <div className="text-sm">Fully Fillable</div>
+                <div className="text-sm">完全入力可能</div>
               </div>
             </div>
 
@@ -117,18 +117,18 @@ export default function AnalyzePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-2">Company</th>
-                    <th className="text-left p-2">Form Found</th>
-                    <th className="text-left p-2">Contact Page URL</th>
-                    <th className="text-left p-2">Fillability</th>
-                    <th className="text-left p-2">Fields</th>
+                    <th className="text-left p-2">企業名</th>
+                    <th className="text-left p-2">フォーム検出</th>
+                    <th className="text-left p-2">お問い合わせページURL</th>
+                    <th className="text-left p-2">入力可能性</th>
+                    <th className="text-left p-2">フィールド数</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.results.map((r, i) => (
                     <tr key={i} className="border-b">
                       <td className="p-2">{r.companyName}</td>
-                      <td className="p-2">{r.formPageFound ? "Yes" : "No"}</td>
+                      <td className="p-2">{r.formPageFound ? "有" : "無"}</td>
                       <td className="p-2">
                         {r.formPageUrl ? (
                           <a
