@@ -143,7 +143,7 @@ export async function findContactPage(
         // If URL has non-Japanese language code, REJECT it completely
         if (hasOtherLanguage) {
           score = -1000; // Massive penalty - effectively exclude this link
-          return { ...link, score };
+          return { link, score };
         }
 
         // If URL has Japanese language code, give HUGE boost

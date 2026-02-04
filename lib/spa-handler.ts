@@ -28,7 +28,7 @@ export async function waitForDynamicContent(
     for (let i = 0; i < 3; i++) {
       hasContent = await page.evaluate(() => {
         const body = document.body;
-        return body && body.textContent && body.textContent.trim().length > 100;
+        return !!(body && body.textContent && body.textContent.trim().length > 100);
       });
 
       if (hasContent) break;
