@@ -1,0 +1,173 @@
+// main analyzer - ties everything together
+import { chromium, Browser, Page } from "playwright";
+import {
+  CompanyInput,
+  AnalysisResult,
+  FillabilityStatus,
+  AnalyzerConfig,
+} from "./types";
+import { findContactPage, hasContactForm } from "./contact-page-discovery";
+import { waitForDynamicContent, scrollToLoadContent } from "./spa-handler";
+import { extractContactForm } from "./form-extractor";
+import { assessFillability } from "./fillability-assessor";
+
+const DEFAULT_CONFIG: AnalyzerConfig = {
+  timeout: 30000,
+  headless: true,
+  maxRetries: 2,
+  contactPageKeywords: [],
+};
+
+export async function analyzeCompany(
+  company: CompanyInput,
+  browser: Browser,
+  config: AnalyzerConfig = DEFAULT_CONFIG
+): Promise<AnalysisResult> {
+  const page = await browser.newPage();
+
+  try {
+    page.setDefaultTimeout(config.timeout);
+
+    console.log(`[${company.name}] Finding contact page...`);
+    const contactPageResult = await findContactPage(page, company.url);
+
+    if (!contactPageResult.found || !contactPageResult.url) {
+      return {
+        companyName: company.name,
+        companyUrl: company.url,
+        formPageFound: false,
+        dynamicContentLoaded: false,
+        fillabilityStatus: FillabilityStatus.NO_FORM,
+        errorMessage: contactPageResult.error || "Contact page not found",
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    console.log(
+      `[${company.name}] Contact page found: ${contactPageResult.url}`
+    );
+
+    // navigate to contact page with more lenient wait
+    await page.goto(contactPageResult.url, {
+      waitUntil: "domcontentloaded",
+      timeout: config.timeout,
+    });
+
+    // wait for network idle with fallback
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {
+      // continue even if networkidle times out
+    });
+
+    // extra wait for dynamic content
+    await page.waitForTimeout(3000);
+
+    const dynamicContentResult = await waitForDynamicContent(
+      page,
+      config.timeout
+    );
+
+    // scroll to load lazy content
+    await scrollToLoadContent(page);
+
+    // wait a bit after scrolling for content to appear
+    await page.waitForTimeout(2000);
+
+    const hasForm = await hasContactForm(page);
+
+    if (!hasForm) {
+      return {
+        companyName: company.name,
+        companyUrl: company.url,
+        formPageFound: true,
+        formPageUrl: contactPageResult.url,
+        dynamicContentLoaded: dynamicContentResult.loaded,
+        fillabilityStatus: FillabilityStatus.NO_FORM,
+        errorMessage: "No form found on contact page",
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    console.log(`[${company.name}] Form found, extracting structure...`);
+
+    const formStructure = await extractContactForm(page);
+
+    if (!formStructure) {
+      return {
+        companyName: company.name,
+        companyUrl: company.url,
+        formPageFound: true,
+        formPageUrl: contactPageResult.url,
+        dynamicContentLoaded: dynamicContentResult.loaded,
+        fillabilityStatus: FillabilityStatus.NO_FORM,
+        errorMessage: "Could not extract form structure",
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    console.log(
+      `[${company.name}] Assessing fillability (${formStructure.fields.length} fields)...`
+    );
+
+    const { status, mappedFields, unmappedRequiredFields } =
+      assessFillability(formStructure);
+
+    console.log(`[${company.name}] Fillability: ${status}`);
+
+    return {
+      companyName: company.name,
+      companyUrl: company.url,
+      formPageFound: true,
+      formPageUrl: contactPageResult.url,
+      dynamicContentLoaded: dynamicContentResult.loaded,
+      fillabilityStatus: status,
+      formStructure,
+      mappedFields,
+      unmappedRequiredFields,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error(`[${company.name}] Error:`, error);
+    return {
+      companyName: company.name,
+      companyUrl: company.url,
+      formPageFound: false,
+      dynamicContentLoaded: false,
+      fillabilityStatus: FillabilityStatus.NO_FORM,
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    };
+  } finally {
+    await page.close();
+  }
+}
+
+// analyze multiple companies in parallel with concurrency limit
+export async function analyzeCompanies(
+  companies: CompanyInput[],
+  config: AnalyzerConfig = DEFAULT_CONFIG
+): Promise<AnalysisResult[]> {
+  const browser = await chromium.launch({ headless: config.headless });
+  const results: AnalysisResult[] = [];
+
+  // process up to 3 companies at a time to avoid overwhelming the system
+  const CONCURRENCY_LIMIT = 3;
+
+  try {
+    // split companies into batches
+    for (let i = 0; i < companies.length; i += CONCURRENCY_LIMIT) {
+      const batch = companies.slice(i, i + CONCURRENCY_LIMIT);
+
+      // process batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(company => analyzeCompany(company, browser, config))
+      );
+
+      results.push(...batchResults);
+    }
+
+    return results;
+  } finally {
+    await browser.close();
+  }
+}
+
