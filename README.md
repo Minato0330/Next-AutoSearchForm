@@ -1,151 +1,194 @@
-# Contact Form Analyzer
+# お問い合わせフォーム自動検出システム
 
-A Next.js demo project that automatically discovers and analyzes contact forms on public company websites using Playwright.
+企業の公式ウェブサイトから日本語のお問い合わせページを自動的に検出・分析するNext.jsアプリケーションです。Playwrightを使用してWebスクレイピングを行います。
 
-## 🎯 Project Overview
+## 🎯 プロジェクト概要
 
-This tool evaluates whether contact forms can be auto-filled with standard contact information, without actually submitting them. It's designed to analyze ~300 websites and measure success/failure rates.
+このツールは、企業のホームページから日本語のお問い合わせページを自動的に発見し、フォームの構造を分析します。約300社のウェブサイトを分析し、成功率を測定することを目的としています。
 
-### Key Features
+### 主な機能
 
-- ✅ **Contact Page Discovery**: Automatically finds contact/inquiry pages from company homepages
-- ✅ **SPA Support**: Handles JavaScript-rendered content and modern frameworks (React, Vue, Angular, Next.js)
-- ✅ **Form Extraction**: Analyzes form structures including fields, types, labels, and requirements
-- ✅ **Fillability Assessment**: Classifies forms as Fully/Partially/Not Fillable
-- ✅ **Report Generation**: Exports results to CSV and JSON formats
+- ✅ **日本語お問い合わせページの自動検出**: 企業ホームページから日本語のお問い合わせページを優先的に検出
+- ✅ **厳格な言語フィルタリング**: 日本語ページのみを検出し、英語などの他言語ページを除外
+- ✅ **URLパターン認識**: `/jp/contact/`、`/ja/contact/`などの日本語URLパターンを自動検出
+- ✅ **SPA対応**: React、Vue、Angular、Next.jsなどのJavaScriptフレームワークに対応
+- ✅ **フォーム構造解析**: フォームフィールド、タイプ、ラベル、必須項目を分析
+- ✅ **入力可能性評価**: フォームを「完全入力可能」「部分的に入力可能」「入力不可」に分類
+- ✅ **レポート生成**: CSV・JSON形式で結果をエクスポート
 
-## 🚀 Getting Started
+## 🚀 セットアップ
 
-### Prerequisites
+### 必要な環境
 
-- Node.js 18+ 
-- npm or yarn
+- Node.js 18以上
+- npm または yarn
 
-### Installation
+### インストール手順
 
-1. Clone the repository
-2. Install dependencies:
+1. リポジトリをクローン
+
+2. 依存関係をインストール:
 
 ```bash
 npm install
 ```
 
-3. Install Playwright browsers:
+3. Playwrightブラウザをインストール:
 
 ```bash
 npx playwright install chromium
 ```
 
-### Usage
+### 使い方
 
-#### Option 1: Web Interface
+#### 方法1: Webインターフェース
 
-1. Start the development server:
+1. 開発サーバーを起動:
 
 ```bash
 npm run dev
 ```
 
-2. Open [http://localhost:3000](http://localhost:3000)
-3. Navigate to the "Start Analysis" page
-4. Enter companies in the format: `Company Name, URL` (one per line)
-5. Click "Start Analysis"
+2. ブラウザで [http://localhost:3000](http://localhost:3000) を開く
+3. 企業URLを入力欄に入力
+4. 「お問い合わせページを検索」ボタンをクリック
+5. 検出されたお問い合わせページのURLが表示されます
 
-#### Option 2: Command Line
+#### 方法2: コマンドライン
 
-1. Edit `data/sample-companies.ts` to add your company list
-2. Run the analysis:
+1. `data/sample-companies.ts` に企業リストを追加
+2. 分析を実行:
 
 ```bash
 npm run analyze
 ```
 
-3. Results will be saved to the `results/` directory
+3. 結果は `results/` ディレクトリに保存されます
 
-## 📊 Output
+## 📊 出力内容
 
-The analyzer generates reports with the following information:
+分析ツールは以下の情報を含むレポートを生成します:
 
-- Company URL
-- Form Page Found (Yes/No)
-- Form Page URL
-- Dynamic Content Loaded (Yes/No)
-- Fillability Status (Full/Partial/None/No Form Found)
-- Field Details (extracted form structure)
-- Error Message (if any)
+- 企業URL
+- お問い合わせページ検出結果（有/無）
+- お問い合わせページURL
+- 動的コンテンツ読み込み（有/無）
+- 入力可能性ステータス（完全/部分的/不可/フォームなし）
+- フィールド詳細（抽出されたフォーム構造）
+- エラーメッセージ（該当する場合）
 
-### Metrics Tracked
+### 追跡される指標
 
-1. **Form Discovery Success Rate**: % of websites where a contact form page is found
-2. **Dynamic Content Load Success Rate**: % of pages where SPA/JS content loads correctly
-3. **Auto-fill Capability Breakdown**:
-   - Fully fillable
-   - Partially fillable
-   - Not fillable
-   - No form found
+1. **フォーム検出成功率**: お問い合わせページが見つかったウェブサイトの割合
+2. **動的コンテンツ読み込み成功率**: SPA/JSコンテンツが正しく読み込まれたページの割合
+3. **自動入力可能性の内訳**:
+   - 完全入力可能
+   - 部分的に入力可能
+   - 入力不可
+   - フォームなし
 
-## 🏗️ Project Structure
+## 🏗️ プロジェクト構成
 
 ```
-├── app/                    # Next.js app directory
-│   ├── api/analyze/       # API route for analysis
-│   ├── analyze/           # Analysis UI page
-│   └── page.tsx           # Homepage
-├── lib/                   # Core library modules
-│   ├── analyzer.ts        # Main orchestration
-│   ├── contact-page-discovery.ts
-│   ├── spa-handler.ts
-│   ├── form-extractor.ts
-│   ├── fillability-assessor.ts
-│   ├── report-generator.ts
-│   └── types.ts           # TypeScript definitions
-├── data/                  # Company data
+├── app/                    # Next.jsアプリディレクトリ
+│   ├── api/
+│   │   ├── analyze/       # 分析APIルート
+│   │   ├── find-contact/  # お問い合わせページ検索API
+│   │   └── extract-form/  # フォーム抽出API
+│   ├── analyze/           # 分析UIページ
+│   └── page.tsx           # ホームページ
+├── lib/                   # コアライブラリモジュール
+│   ├── analyzer.ts        # メインオーケストレーション
+│   ├── contact-page-discovery.ts  # お問い合わせページ検出ロジック
+│   ├── spa-handler.ts     # SPA処理
+│   ├── form-extractor.ts  # フォーム抽出
+│   ├── fillability-assessor.ts  # 入力可能性評価
+│   ├── report-generator.ts  # レポート生成
+│   └── types.ts           # TypeScript型定義
+├── data/                  # 企業データ
 │   └── sample-companies.ts
-├── scripts/               # CLI scripts
-│   └── analyze.ts
-└── results/               # Generated reports (gitignored)
+├── scripts/               # CLIスクリプト
+│   ├── analyze.ts
+│   └── find-contact-page.ts
+└── results/               # 生成されたレポート（gitignore対象）
 ```
 
-## 🔧 Configuration
+## 🔧 設定
 
-Edit the analyzer configuration in `scripts/analyze.ts` or when calling the API:
+`scripts/analyze.ts` またはAPI呼び出し時に分析設定を編集できます:
 
 ```typescript
 const config = {
-  timeout: 30000,        // Request timeout in ms
-  headless: true,        // Run browser in headless mode
-  maxRetries: 2,         // Max retry attempts
-  contactPageKeywords: [] // Additional keywords for contact page detection
+  timeout: 30000,        // リクエストタイムアウト（ミリ秒）
+  headless: true,        // ヘッドレスモードでブラウザを実行
+  maxRetries: 2,         // 最大リトライ回数
+  preferredLanguage: "ja" // 優先言語（日本語）
 };
 ```
 
-## 📝 Supported Languages
+## 📝 対応言語
 
-The analyzer supports both English and Japanese contact pages:
+このシステムは日本語のお問い合わせページを優先的に検出します:
 
-- English: "Contact", "Contact Us", "Inquiry", etc.
-- Japanese: "お問い合わせ", "問い合わせ", "コンタクト", etc.
+### 日本語URLパターン
+- `/ja/`、`/jp/`、`/jp-ja/`、`/ja-jp/`、`/ja_jp/`、`/jp_ja/`、`/japanese/`
 
-## ⚠️ Limitations (Current Phase)
+### 日本語キーワード
+- 「お問い合わせ」「問い合わせ」「コンタクト」「お問合せ」「問合せ」「連絡」など
 
-- ❌ No actual form submission
-- ❌ No CAPTCHA bypass (manual only)
-- ✅ Analysis only
+### 英語ページの除外
+- `/en/`、`/us/`、`/uk/`、`/de/`、`/fr/`などの非日本語URLは自動的に除外されます
 
-## 🔮 Future Enhancements (Out of Scope)
+## 🔍 日本語お問い合わせページ検出の仕組み
 
-- Automated form filling
-- Submission logic
-- CAPTCHA handling
-- LinkedIn integration
-- CSV import
-- API integration
+### 1. URLパターン検出
+システムは以下のパターンを自動的に検出します:
+- `/jp/contact/` → 日本電産（Nidec）などで使用
+- `/ja-jp/contact/` → オムロン（Omron）などで使用
+- `/ja/contact/` → 一般的な日本語サイトで使用
 
-## 📄 License
+### 2. スコアリングシステム
+- 日本語URL: **+500点**（最優先）
+- 非日本語URL: **-1000点**（完全除外）
+- お問い合わせキーワード: +70点
+- 短いURL: 優先
+
+### 3. 厳格なフィルタリング
+`preferredLanguage: "ja"` が設定されている場合:
+- 日本語URLのみを返す
+- 英語などの他言語ページは完全に除外
+- 日本語ページが見つからない場合はエラーを返す
+
+## ⚠️ 現在の制限事項
+
+- ❌ 実際のフォーム送信は行いません
+- ❌ CAPTCHA回避機能なし（手動のみ）
+- ✅ 分析のみ実行
+
+## 🔮 将来の拡張機能（現在のスコープ外）
+
+- フォームの自動入力
+- 送信ロジック
+- CAPTCHA処理
+- LinkedIn連携
+- CSVインポート
+- API統合
+
+## 🧪 テスト済み企業サイト
+
+以下の企業サイトで日本語お問い合わせページの検出をテスト済み:
+
+- ✅ 日本電産（Nidec）: `https://www.nidec.com/jp/contact/`
+- ✅ オムロン（Omron）: `https://components.omron.com/ja-jp/contact`
+- ✅ SMC: `https://www.smcworld.com/support/contact/ja-jp/`
+- ✅ 安川電機（Yaskawa）: `https://www.yaskawa.co.jp/contact/`
+- ✅ ファナック（FANUC）: `https://www.fanuc.co.jp/ja/contact/form/index.html`
+
+## 📄 ライセンス
 
 MIT
 
-## 🤝 Contributing
+## 🤝 貢献
 
-This is a demo project. Feel free to fork and extend it for your needs.
+このプロジェクトはデモプロジェクトです。自由にフォークして拡張してください。
 

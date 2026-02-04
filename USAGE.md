@@ -1,176 +1,225 @@
-# Usage Guide
+# 使い方ガイド
 
-## Quick Start
+## 📖 目次
 
-### 1. Web Interface (Recommended for Small Batches)
+1. [基本的な使い方](#基本的な使い方)
+2. [Webインターフェース](#webインターフェース)
+3. [コマンドライン](#コマンドライン)
+4. [API使用方法](#api使用方法)
+5. [トラブルシューティング](#トラブルシューティング)
+
+## 基本的な使い方
+
+### 1. 開発サーバーの起動
 
 ```bash
-# Start the development server
 npm run dev
 ```
 
-Then open http://localhost:3000 and:
-1. Click "Start Analysis"
-2. Enter companies in format: `Company Name, URL` (one per line)
-3. Click "Start Analysis" button
-4. View results in real-time
+サーバーが起動したら、ブラウザで [http://localhost:3000](http://localhost:3000) を開きます。
 
-**Example Input:**
+### 2. お問い合わせページの検索
+
+1. **企業URL**を入力欄に入力（例: `https://www.nidec.com/`）
+2. **「お問い合わせページを検索」**ボタンをクリック
+3. 検出されたお問い合わせページのURLが表示されます
+
+### 3. フォーム情報の抽出
+
+お問い合わせページが見つかったら:
+1. **「フォーム情報を抽出」**ボタンをクリック
+2. フォームフィールドの詳細が表示されます
+
+## Webインターフェース
+
+### ホームページ（/）
+
+**機能:**
+- 企業URLからお問い合わせページを検索
+- 検出されたページからフォーム情報を抽出
+- 2ステップのシーケンシャルワークフロー
+
+**使用例:**
+
 ```
-Mozilla, https://www.mozilla.org
-WordPress, https://wordpress.org
-GitHub, https://github.com
+1. 企業URL入力: https://www.nidec.com/
+2. 「お問い合わせページを検索」をクリック
+3. 結果: https://www.nidec.com/jp/contact/
+4. 「フォーム情報を抽出」をクリック
+5. フォームフィールドの詳細が表示される
 ```
 
-### 2. Command Line (Recommended for Large Batches)
+### 分析ページ（/analyze）
+
+**機能:**
+- 複数企業の一括分析
+- CSV/JSON形式でレポート生成
+- 成功率の統計表示
+
+**使用方法:**
+
+1. 企業リストを入力（1行に1社）:
+```
+日本電産,https://www.nidec.com/
+オムロン,https://components.omron.com
+SMC,https://www.smcworld.com
+```
+
+2. 「分析開始」ボタンをクリック
+3. 結果が表形式で表示されます
+4. 「CSVダウンロード」または「JSONダウンロード」でエクスポート
+
+## コマンドライン
+
+### お問い合わせページの検索
 
 ```bash
-# Edit the company list
-# Open data/sample-companies.ts and add your companies
-
-# Run the analysis
-npm run analyze
-
-# Results will be saved to:
-# - results/contact-form-analysis-[timestamp].csv
-# - results/contact-form-analysis-[timestamp].json
+npm run find-contact -- --url https://www.nidec.com/
 ```
 
-## Adding Companies
+**オプション:**
+- `--url`: 企業のホームページURL（必須）
+- `--lang`: 優先言語（デフォルト: `ja`）
 
-### Method 1: Edit sample-companies.ts
+### 一括分析
+
+1. `data/sample-companies.ts` を編集:
 
 ```typescript
-export const sampleCompanies: CompanyInput[] = [
-  {
-    name: "Company Name",
-    url: "https://company-website.com",
-  },
-  // Add more...
+export const sampleCompanies = [
+  { name: "日本電産", url: "https://www.nidec.com/" },
+  { name: "オムロン", url: "https://components.omron.com" },
+  { name: "SMC", url: "https://www.smcworld.com" },
 ];
 ```
 
-### Method 2: Create a CSV Loader (Future Enhancement)
+2. 分析を実行:
 
-You can extend `data/sample-companies.ts` to load from CSV:
+```bash
+npm run analyze
+```
 
-```typescript
-import { readFile } from 'fs/promises';
+3. 結果は `results/` ディレクトリに保存されます
 
-export async function loadCompaniesFromCSV(filepath: string): Promise<CompanyInput[]> {
-  const content = await readFile(filepath, 'utf-8');
-  const lines = content.split('\n').slice(1); // Skip header
-  
-  return lines.map(line => {
-    const [name, url] = line.split(',');
-    return { name: name.trim(), url: url.trim() };
-  });
+## API使用方法
+
+### 1. お問い合わせページ検索API
+
+**エンドポイント:** `POST /api/find-contact`
+
+**リクエスト:**
+```json
+{
+  "url": "https://www.nidec.com/",
+  "preferredLanguage": "ja"
 }
 ```
 
-## Configuration Options
+**レスポンス:**
+```json
+{
+  "found": true,
+  "url": "https://www.nidec.com/jp/contact/",
+  "allContactUrls": [
+    "https://www.nidec.com/jp/contact/"
+  ]
+}
+```
 
-### Analyzer Configuration
+### 2. フォーム抽出API
 
+**エンドポイント:** `POST /api/extract-form`
+
+**リクエスト:**
+```json
+{
+  "url": "https://www.nidec.com/jp/contact/"
+}
+```
+
+**レスポンス:**
+```json
+{
+  "found": true,
+  "fields": [
+    {
+      "name": "name",
+      "type": "text",
+      "label": "お名前",
+      "required": true
+    }
+  ],
+  "fillability": "Full"
+}
+```
+
+### 3. 一括分析API
+
+**エンドポイント:** `POST /api/analyze`
+
+**リクエスト:**
+```json
+{
+  "companies": [
+    { "name": "日本電産", "url": "https://www.nidec.com/" }
+  ]
+}
+```
+
+## トラブルシューティング
+
+### お問い合わせページが見つからない
+
+**原因:**
+- 日本語のお問い合わせページが存在しない
+- URLパターンが認識されていない
+- ページの読み込みに時間がかかっている
+
+**解決方法:**
+1. ブラウザで手動でお問い合わせページを確認
+2. URLパターンを確認（`/jp/`、`/ja/`など）
+3. タイムアウト設定を増やす
+
+### タイムアウトエラー
+
+**エラーメッセージ:**
+```
+Error [TimeoutError]: page.goto: Timeout 30000ms exceeded.
+```
+
+**解決方法:**
+- `lib/analyzer.ts` の `timeout` 設定を増やす:
 ```typescript
-const config: AnalyzerConfig = {
-  timeout: 30000,        // Request timeout (ms)
-  headless: true,        // Run browser in headless mode
-  maxRetries: 2,         // Max retry attempts
-  contactPageKeywords: [] // Additional keywords
+const config = {
+  timeout: 60000, // 30秒 → 60秒に変更
 };
 ```
 
-### Headless vs Headed Mode
+### 英語ページが検出される
 
-**Headless (default)**: Faster, runs in background
-```typescript
-headless: true
+**原因:**
+- 日本語ページが存在しない
+- 言語設定が正しくない
+
+**解決方法:**
+1. `preferredLanguage: "ja"` が設定されているか確認
+2. デバッグログを確認:
+```
+[Contact Discovery] Found X Japanese contact links:
+  - https://example.com/jp/contact/
 ```
 
-**Headed**: See browser in action (useful for debugging)
-```typescript
-headless: false
+## デバッグモード
+
+デバッグログを有効にするには、ブラウザの開発者ツールのコンソールまたはターミナルを確認してください。
+
+**ログの例:**
 ```
-
-## Understanding Results
-
-### Fillability Status
-
-- **Full**: All required fields can be auto-filled
-- **Partial**: Some required fields can be auto-filled
-- **None**: No required fields can be auto-filled
-- **No Form Found**: No contact form detected
-
-### CSV Report Columns
-
-1. **Company Name**: Name of the company
-2. **Company URL**: Homepage URL
-3. **Form Page Found**: Yes/No
-4. **Form Page URL**: URL of the contact page
-5. **Dynamic Content Loaded**: Yes/No (SPA detection)
-6. **Fillability Status**: Full/Partial/None/No Form Found
-7. **Mapped Fields**: Fields that can be auto-filled
-8. **Unmapped Required Fields**: Required fields that cannot be mapped
-9. **Total Fields**: Total number of form fields
-10. **Error Message**: Any errors encountered
-11. **Timestamp**: When the analysis was performed
-
-### JSON Report Structure
-
-```json
-{
-  "totalCompanies": 100,
-  "formDiscoverySuccessRate": 85.5,
-  "dynamicContentSuccessRate": 92.3,
-  "fillabilityBreakdown": {
-    "full": 45,
-    "partial": 30,
-    "none": 10,
-    "noForm": 15
-  },
-  "results": [...]
-}
+[Contact Discovery] Found 10 contact-related links from 158 total links
+[Contact Discovery] Found 1 Japanese contact links:
+  - https://www.nidec.com/jp/contact/ (text: "お問い合わせ")
+[Contact Discovery] Found 10 contact links. Top 10 scored:
+  1. [Score: 570] https://www.nidec.com/jp/contact/
+      Text: "お問い合わせ" | isJapanese: true | hasOtherLang: false
 ```
-
-## Tips for Best Results
-
-1. **Use HTTPS URLs**: Always use `https://` in URLs
-2. **Include www if needed**: Some sites redirect, use the canonical URL
-3. **Test with small batches first**: Start with 5-10 companies
-4. **Adjust timeout for slow sites**: Increase timeout in config
-5. **Check results directory**: Reports are saved with timestamps
-
-## Troubleshooting
-
-### "No contact page link found"
-- The site might use different keywords
-- Add custom keywords to `contactPageKeywords` in config
-- Check if the site has a contact page at all
-
-### "Timeout" errors
-- Increase the `timeout` value in config
-- Check your internet connection
-- Some sites might be blocking automated access
-
-### "No form found on contact page"
-- The contact page might use email links instead of forms
-- The form might be loaded via iframe (not currently supported)
-- The form might require authentication
-
-## Performance
-
-- **Average time per site**: 10-30 seconds
-- **100 companies**: ~20-50 minutes
-- **300 companies**: ~1-2.5 hours
-
-Use headless mode for better performance.
-
-## Next Steps
-
-After analysis:
-1. Review the CSV report in Excel/Google Sheets
-2. Filter by fillability status
-3. Identify patterns in unmapped fields
-4. Extend the field mapping logic if needed
 
