@@ -18,13 +18,11 @@ export async function POST(request: NextRequest) {
     const page = await browser.newPage();
 
     try {
-      // navigate to contact page
       await page.goto(url, {
         waitUntil: "networkidle",
         timeout: 30000,
       });
 
-      // wait for dynamic content
       await waitForDynamicContent(page, 30000);
       await scrollToLoadContent(page);
 

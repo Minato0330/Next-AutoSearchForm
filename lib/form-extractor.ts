@@ -1,8 +1,6 @@
-// extract form data from pages
 import { Page } from "playwright";
 import { FormStructure, FormField } from "./types";
 
-// get all forms on the page
 export async function extractForms(page: Page): Promise<FormStructure[]> {
   try {
     const forms = await page.$$eval("form", (formElements) => {
@@ -10,7 +8,6 @@ export async function extractForms(page: Page): Promise<FormStructure[]> {
         const action = form.getAttribute("action") || undefined;
         const method = form.getAttribute("method") || undefined;
 
-        // get all input fields
         const inputs = Array.from(
           form.querySelectorAll(
             "input, textarea, select"
@@ -21,7 +18,6 @@ export async function extractForms(page: Page): Promise<FormStructure[]> {
 
         const fields = inputs
           .filter((input) => {
-            // skip hidden/submit/button fields
             const type = input.getAttribute("type") || "text";
             return !["hidden", "submit", "button", "image"].includes(type);
           })
@@ -32,7 +28,6 @@ export async function extractForms(page: Page): Promise<FormStructure[]> {
               input.hasAttribute("required") ||
               input.getAttribute("aria-required") === "true";
 
-            // find the label
             let label: string | undefined;
             const id = input.getAttribute("id");
             if (id) {
@@ -42,7 +37,6 @@ export async function extractForms(page: Page): Promise<FormStructure[]> {
               }
             }
 
-            // check parent label if not found
             if (!label) {
               const parentLabel = input.closest("label");
               if (parentLabel) {
@@ -52,7 +46,6 @@ export async function extractForms(page: Page): Promise<FormStructure[]> {
 
             const placeholder = input.getAttribute("placeholder") || undefined;
 
-            // get options for select dropdowns
             let options: string[] | undefined;
             if (input.tagName.toLowerCase() === "select") {
               const selectElement = input as HTMLSelectElement;
@@ -86,12 +79,10 @@ export async function extractForms(page: Page): Promise<FormStructure[]> {
 
     return forms;
   } catch (error) {
-    console.error("Error extracting forms:", error);
     return [];
   }
 }
 
-// pick the best contact form if there are multiple
 export async function extractContactForm(
   page: Page
 ): Promise<FormStructure | null> {

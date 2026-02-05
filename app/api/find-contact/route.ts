@@ -18,14 +18,10 @@ export async function POST(request: NextRequest) {
 
     try {
       const contactResult = await findContactPage(page, url, {
-        preferredLanguage: preferredLanguage || "ja", // Default to Japanese
-        returnAllMatches: true, // return all matches for debugging
+        preferredLanguage: preferredLanguage || "ja",
+        returnAllMatches: true,
       });
       await browser.close();
-
-      // Log the result for debugging
-      console.log(`[${url}] Contact page found:`, contactResult.url);
-      console.log(`[${url}] All contact URLs:`, contactResult.allContactUrls);
 
       return NextResponse.json(contactResult);
     } catch (error) {

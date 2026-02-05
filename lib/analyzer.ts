@@ -1,4 +1,3 @@
-// main analyzer - ties everything together
 import { chromium, Browser, Page } from "playwright";
 import {
   CompanyInput,
@@ -28,7 +27,6 @@ export async function analyzeCompany(
   try {
     page.setDefaultTimeout(config.timeout);
 
-    console.log(`[${company.name}] Finding contact page...`);
     const contactPageResult = await findContactPage(page, company.url);
 
     if (!contactPageResult.found || !contactPageResult.url) {
@@ -43,11 +41,6 @@ export async function analyzeCompany(
       };
     }
 
-    console.log(
-      `[${company.name}] Contact page found: ${contactPageResult.url}`
-    );
-
-    // navigate to contact page with more lenient wait
     await page.goto(contactPageResult.url, {
       waitUntil: "domcontentloaded",
       timeout: config.timeout,
@@ -66,10 +59,8 @@ export async function analyzeCompany(
       config.timeout
     );
 
-    // scroll to load lazy content
     await scrollToLoadContent(page);
 
-    // wait a bit after scrolling for content to appear
     await page.waitForTimeout(2000);
 
     const hasForm = await hasContactForm(page);
@@ -87,8 +78,6 @@ export async function analyzeCompany(
       };
     }
 
-    console.log(`[${company.name}] Form found, extracting structure...`);
-
     const formStructure = await extractContactForm(page);
 
     if (!formStructure) {
@@ -104,14 +93,8 @@ export async function analyzeCompany(
       };
     }
 
-    console.log(
-      `[${company.name}] Assessing fillability (${formStructure.fields.length} fields)...`
-    );
-
     const { status, mappedFields, unmappedRequiredFields } =
       assessFillability(formStructure);
-
-    console.log(`[${company.name}] Fillability: ${status}`);
 
     return {
       companyName: company.name,
@@ -126,7 +109,6 @@ export async function analyzeCompany(
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error(`[${company.name}] Error:`, error);
     return {
       companyName: company.name,
       companyUrl: company.url,
@@ -141,13 +123,19 @@ export async function analyzeCompany(
   }
 }
 
-// analyze multiple companies in parallel with concurrency limit
+// Progress callback type
+export type ProgressCallback = (completed: number, total: number, currentCompany: string) => void;
+
+// analyze multiple companies in parallel with concurrency limit and progress tracking
 export async function analyzeCompanies(
   companies: CompanyInput[],
-  config: AnalyzerConfig = DEFAULT_CONFIG
+  config: AnalyzerConfig = DEFAULT_CONFIG,
+  onProgress?: ProgressCallback
 ): Promise<AnalysisResult[]> {
   const browser = await chromium.launch({ headless: config.headless });
   const results: AnalysisResult[] = [];
+  const totalCompanies = companies.length;
+  let completedCount = 0;
 
   // process up to 3 companies at a time to avoid overwhelming the system
   const CONCURRENCY_LIMIT = 3;
@@ -157,11 +145,20 @@ export async function analyzeCompanies(
     for (let i = 0; i < companies.length; i += CONCURRENCY_LIMIT) {
       const batch = companies.slice(i, i + CONCURRENCY_LIMIT);
 
-      // process batch in parallel
-      const batchResults = await Promise.all(
-        batch.map(company => analyzeCompany(company, browser, config))
-      );
+      // process batch in parallel with progress tracking
+      const batchPromises = batch.map(async (company) => {
+        const result = await analyzeCompany(company, browser, config);
+        completedCount++;
 
+        // Call progress callback after each company completes
+        if (onProgress) {
+          onProgress(completedCount, totalCompanies, company.name);
+        }
+
+        return result;
+      });
+
+      const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
     }
 

@@ -1,7 +1,3 @@
-/**
- * API route for triggering analysis
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeCompanies } from "@/lib/analyzer";
 import { generateSummary } from "@/lib/report-generator";
@@ -19,7 +15,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Run analysis
     const results = await analyzeCompanies(companies, {
       timeout: 30000,
       headless: true,
@@ -27,12 +22,10 @@ export async function POST(request: NextRequest) {
       contactPageKeywords: [],
     });
 
-    // Generate summary
     const summary = generateSummary(results);
 
     return NextResponse.json(summary);
   } catch (error) {
-    console.error("Analysis error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
