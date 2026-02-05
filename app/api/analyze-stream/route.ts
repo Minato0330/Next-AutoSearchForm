@@ -1,7 +1,3 @@
-/**
- * API route for streaming analysis with real-time progress updates
- */
-
 import { NextRequest } from "next/server";
 import { analyzeCompanies } from "@/lib/analyzer";
 import { generateSummary } from "@/lib/report-generator";
@@ -85,7 +81,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Analysis error:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { "Content-Type": "application/json" } }

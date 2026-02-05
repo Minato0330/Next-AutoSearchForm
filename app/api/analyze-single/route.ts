@@ -1,7 +1,3 @@
-/**
- * API route for analyzing a single company
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { chromium } from "playwright";
 import { findContactPage } from "@/lib/contact-page-discovery";

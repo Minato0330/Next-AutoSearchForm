@@ -1,4 +1,3 @@
-// main analyzer - ties everything together
 import { chromium, Browser, Page } from "playwright";
 import {
   CompanyInput,
@@ -28,7 +27,6 @@ export async function analyzeCompany(
   try {
     page.setDefaultTimeout(config.timeout);
 
-    console.log(`[${company.name}] Finding contact page...`);
     const contactPageResult = await findContactPage(page, company.url);
 
     if (!contactPageResult.found || !contactPageResult.url) {
@@ -43,11 +41,6 @@ export async function analyzeCompany(
       };
     }
 
-    console.log(
-      `[${company.name}] Contact page found: ${contactPageResult.url}`
-    );
-
-    // navigate to contact page with more lenient wait
     await page.goto(contactPageResult.url, {
       waitUntil: "domcontentloaded",
       timeout: config.timeout,
@@ -66,10 +59,8 @@ export async function analyzeCompany(
       config.timeout
     );
 
-    // scroll to load lazy content
     await scrollToLoadContent(page);
 
-    // wait a bit after scrolling for content to appear
     await page.waitForTimeout(2000);
 
     const hasForm = await hasContactForm(page);
@@ -87,8 +78,6 @@ export async function analyzeCompany(
       };
     }
 
-    console.log(`[${company.name}] Form found, extracting structure...`);
-
     const formStructure = await extractContactForm(page);
 
     if (!formStructure) {
@@ -104,14 +93,8 @@ export async function analyzeCompany(
       };
     }
 
-    console.log(
-      `[${company.name}] Assessing fillability (${formStructure.fields.length} fields)...`
-    );
-
     const { status, mappedFields, unmappedRequiredFields } =
       assessFillability(formStructure);
-
-    console.log(`[${company.name}] Fillability: ${status}`);
 
     return {
       companyName: company.name,
@@ -126,7 +109,6 @@ export async function analyzeCompany(
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error(`[${company.name}] Error:`, error);
     return {
       companyName: company.name,
       companyUrl: company.url,

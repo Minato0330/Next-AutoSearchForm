@@ -1,4 +1,3 @@
-// handles SPA and dynamic content
 import { Page } from "playwright";
 
 export interface DynamicContentResult {
@@ -6,24 +5,17 @@ export interface DynamicContentResult {
   error?: string;
 }
 
-// wait for page to fully load (especially for SPAs)
 export async function waitForDynamicContent(
   page: Page,
   timeout: number = 30000
 ): Promise<DynamicContentResult> {
   try {
-    // wait for DOM to be ready
     await page.waitForLoadState("domcontentloaded", { timeout: 10000 });
 
-    // wait for network to be idle (with fallback)
-    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {
-      // continue even if networkidle times out - some sites have constant network activity
-    });
+    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
 
-    // give extra time for JavaScript to execute and render content
     await page.waitForTimeout(3000);
 
-    // wait for body to have content - retry mechanism
     let hasContent = false;
     for (let i = 0; i < 3; i++) {
       hasContent = await page.evaluate(() => {
@@ -33,7 +25,6 @@ export async function waitForDynamicContent(
 
       if (hasContent) break;
 
-      // wait before retry
       await page.waitForTimeout(2000);
     }
 
@@ -72,11 +63,9 @@ export async function waitForSelectors(
   }
 }
 
-// try to detect what framework the site is using
 export async function detectSPAFramework(page: Page): Promise<string | null> {
   try {
     const framework = await page.evaluate(() => {
-      // react check
       if (
         (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ ||
         document.querySelector("[data-reactroot]") ||
@@ -85,12 +74,10 @@ export async function detectSPAFramework(page: Page): Promise<string | null> {
         return "React";
       }
 
-      // vue
       if ((window as any).__VUE__ || document.querySelector("[data-v-]")) {
         return "Vue";
       }
 
-      // angular
       if (
         (window as any).ng ||
         (window as any).getAllAngularRootElements ||
@@ -116,7 +103,6 @@ export async function detectSPAFramework(page: Page): Promise<string | null> {
   }
 }
 
-// scroll down the page to trigger lazy loading
 export async function scrollToLoadContent(page: Page): Promise<void> {
   try {
     await page.evaluate(async () => {
