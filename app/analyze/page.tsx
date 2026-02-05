@@ -39,85 +39,56 @@ export default function AnalyzePage() {
         return;
       }
 
-      const totalCompanies = companyList.length;
-      const results: any[] = [];
+      // Use streaming API for parallel processing with real-time progress
+      const response = await fetch("/api/analyze-stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companies: companyList }),
+      });
 
-      // Process companies one by one
-      for (let i = 0; i < companyList.length; i++) {
-        const company = companyList[i];
-        const currentProgress = Math.round(((i + 1) / totalCompanies) * 100);
-
-        setProgressText(`企業 ${i + 1} / ${totalCompanies} を分析中: ${company.name}`);
-        setProgress(currentProgress);
-
-        try {
-          const response = await fetch("/api/analyze-single", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(company),
-          });
-
-          if (response.ok) {
-            const result = await response.json();
-            results.push(result);
-          } else {
-            // Add error result
-            results.push({
-              companyName: company.name,
-              companyUrl: company.url,
-              formPageFound: false,
-              dynamicContentLoaded: false,
-              fillabilityStatus: "No Form Found",
-              errorMessage: "分析に失敗しました",
-              timestamp: new Date().toISOString(),
-            });
-          }
-        } catch (err) {
-          // Add error result
-          results.push({
-            companyName: company.name,
-            companyUrl: company.url,
-            formPageFound: false,
-            dynamicContentLoaded: false,
-            fillabilityStatus: "No Form Found",
-            errorMessage: err instanceof Error ? err.message : "不明なエラー",
-            timestamp: new Date().toISOString(),
-          });
-        }
+      if (!response.ok) {
+        throw new Error("分析に失敗しました");
       }
 
-      // Generate summary from results
-      const summary = generateClientSideSummary(results);
-      setResult(summary);
-      setProgress(100);
-      setProgressText("分析完了！");
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error("ストリームの読み取りに失敗しました");
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === "progress") {
+              setProgress(data.percentage);
+              setProgressText(
+                `企業 ${data.completed} / ${data.total} を分析中: ${data.currentCompany}`
+              );
+            } else if (data.type === "complete") {
+              setResult(data.data);
+              setProgress(100);
+              setProgressText("分析完了！");
+            } else if (data.type === "error") {
+              throw new Error(data.error);
+            }
+          }
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "不明なエラー");
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateClientSideSummary = (results: any[]): ReportSummary => {
-    const totalCompanies = results.length;
-    const formFound = results.filter((r) => r.formPageFound).length;
-    const dynamicContent = results.filter((r) => r.dynamicContentLoaded).length;
-
-    const fillabilityBreakdown = {
-      full: results.filter((r) => r.fillabilityStatus === "Full").length,
-      partial: results.filter((r) => r.fillabilityStatus === "Partial").length,
-      none: results.filter((r) => r.fillabilityStatus === "None").length,
-      noForm: results.filter((r) => r.fillabilityStatus === "No Form Found").length,
-    };
-
-    return {
-      totalCompanies,
-      formDiscoverySuccessRate: (formFound / totalCompanies) * 100,
-      dynamicContentSuccessRate: (dynamicContent / totalCompanies) * 100,
-      fillabilityBreakdown,
-      results,
-      generatedAt: new Date().toISOString(),
-    };
   };
 
   return (

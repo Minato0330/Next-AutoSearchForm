@@ -141,13 +141,19 @@ export async function analyzeCompany(
   }
 }
 
-// analyze multiple companies in parallel with concurrency limit
+// Progress callback type
+export type ProgressCallback = (completed: number, total: number, currentCompany: string) => void;
+
+// analyze multiple companies in parallel with concurrency limit and progress tracking
 export async function analyzeCompanies(
   companies: CompanyInput[],
-  config: AnalyzerConfig = DEFAULT_CONFIG
+  config: AnalyzerConfig = DEFAULT_CONFIG,
+  onProgress?: ProgressCallback
 ): Promise<AnalysisResult[]> {
   const browser = await chromium.launch({ headless: config.headless });
   const results: AnalysisResult[] = [];
+  const totalCompanies = companies.length;
+  let completedCount = 0;
 
   // process up to 3 companies at a time to avoid overwhelming the system
   const CONCURRENCY_LIMIT = 3;
@@ -157,11 +163,20 @@ export async function analyzeCompanies(
     for (let i = 0; i < companies.length; i += CONCURRENCY_LIMIT) {
       const batch = companies.slice(i, i + CONCURRENCY_LIMIT);
 
-      // process batch in parallel
-      const batchResults = await Promise.all(
-        batch.map(company => analyzeCompany(company, browser, config))
-      );
+      // process batch in parallel with progress tracking
+      const batchPromises = batch.map(async (company) => {
+        const result = await analyzeCompany(company, browser, config);
+        completedCount++;
 
+        // Call progress callback after each company completes
+        if (onProgress) {
+          onProgress(completedCount, totalCompanies, company.name);
+        }
+
+        return result;
+      });
+
+      const batchResults = await Promise.all(batchPromises);
       results.push(...batchResults);
     }
 

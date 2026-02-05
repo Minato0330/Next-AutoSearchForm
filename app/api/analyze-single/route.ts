@@ -55,6 +55,20 @@ export async function POST(request: NextRequest) {
       const formStructure = await extractContactForm(page);
       const dynamicContentLoaded = true;
 
+      if (!formStructure) {
+        await browser.close();
+        return NextResponse.json({
+          companyName: name,
+          companyUrl: url,
+          formPageFound: true,
+          formPageUrl: contactResult.url,
+          dynamicContentLoaded,
+          fillabilityStatus: FillabilityStatus.NO_FORM,
+          errorMessage: "フォーム構造の抽出に失敗しました",
+          timestamp: new Date().toISOString(),
+        } as AnalysisResult);
+      }
+
       // Step 3: Assess fillability
       const fillabilityResult = assessFillability(formStructure);
 
