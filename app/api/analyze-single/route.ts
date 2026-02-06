@@ -7,6 +7,8 @@ import { assessFillability } from "@/lib/fillability-assessor";
 import { FillabilityStatus, AnalysisResult } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
+  let browser = null;
+
   try {
     const { name, url } = await request.json();
 
@@ -17,18 +19,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-extensions',
+        '--disable-component-extensions-with-background-pages',
+      ],
+    });
+
     const page = await browser.newPage();
 
     try {
-      // Step 1: Find contact page
       const contactResult = await findContactPage(page, url, {
         preferredLanguage: "ja",
         returnAllMatches: false,
       });
 
       if (!contactResult.found || !contactResult.url) {
-        await browser.close();
         return NextResponse.json({
           companyName: name,
           companyUrl: url,
@@ -39,7 +57,6 @@ export async function POST(request: NextRequest) {
         } as AnalysisResult);
       }
 
-      // Step 2: Extract form
       await page.goto(contactResult.url, {
         waitUntil: "networkidle",
         timeout: 30000,
@@ -52,7 +69,6 @@ export async function POST(request: NextRequest) {
       const dynamicContentLoaded = true;
 
       if (!formStructure) {
-        await browser.close();
         return NextResponse.json({
           companyName: name,
           companyUrl: url,
@@ -65,10 +81,7 @@ export async function POST(request: NextRequest) {
         } as AnalysisResult);
       }
 
-      // Step 3: Assess fillability
       const fillabilityResult = assessFillability(formStructure);
-
-      await browser.close();
 
       return NextResponse.json({
         companyName: name,
@@ -83,7 +96,6 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString(),
       } as AnalysisResult);
     } catch (error) {
-      await browser.close();
       return NextResponse.json({
         companyName: name,
         companyUrl: url,
@@ -95,11 +107,23 @@ export async function POST(request: NextRequest) {
       } as AnalysisResult);
     }
   } catch (error) {
-    console.error("Analysis error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
+  } finally {
+    if (browser) {
+      try {
+        const pages = browser.contexts().flatMap(context => context.pages());
+        await Promise.all(pages.map(page => page.close().catch(() => {})));
+        await browser.close();
+      } catch (error) {
+        try {
+          await browser.close();
+        } catch {
+        }
+      }
+    }
   }
 }
 

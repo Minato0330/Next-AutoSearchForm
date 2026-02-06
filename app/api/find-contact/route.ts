@@ -3,6 +3,8 @@ import { chromium } from "playwright";
 import { findContactPage } from "@/lib/contact-page-discovery";
 
 export async function POST(request: NextRequest) {
+  let browser = null;
+
   try {
     const { url, preferredLanguage } = await request.json();
 
@@ -13,23 +15,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-extensions',
+        '--disable-component-extensions-with-background-pages',
+      ],
+    });
+
     const page = await browser.newPage();
 
-    try {
-      const contactResult = await findContactPage(page, url, {
-        preferredLanguage: preferredLanguage || "ja",
-        returnAllMatches: true,
-      });
-      await browser.close();
+    const contactResult = await findContactPage(page, url, {
+      preferredLanguage: preferredLanguage || "ja",
+      returnAllMatches: true,
+    });
 
-      return NextResponse.json(contactResult);
-    } catch (error) {
-      await browser.close();
-      throw error;
-    }
+    return NextResponse.json(contactResult);
   } catch (error) {
-    console.error("Error finding contact page:", error);
     return NextResponse.json(
       {
         found: false,
@@ -37,6 +50,19 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
+  } finally {
+    if (browser) {
+      try {
+        const pages = browser.contexts().flatMap(context => context.pages());
+        await Promise.all(pages.map(page => page.close().catch(() => {})));
+        await browser.close();
+      } catch (error) {
+        try {
+          await browser.close();
+        } catch {
+        }
+      }
+    }
   }
 }
 
