@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button, Input, Typography, Tabs, message, Progress } from "antd";
+import { Button, Input, Typography, Tabs, message, Progress, Modal, Select, Checkbox } from "antd";
 import type { TabsProps } from "antd";
-import { FormStructure } from "@/lib/types";
+import { FormStructure, FormField } from "@/lib/types";
 
 const { Title, Paragraph, Text } = Typography;
+const { TextArea } = Input;
 
 export default function Home() {
   const [companyName, setCompanyName] = useState("");
@@ -26,6 +27,10 @@ export default function Home() {
     formStructure?: FormStructure;
     error?: string;
   } | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editableFormData, setEditableFormData] = useState<FormStructure | null>(null);
+  const [isContactFormModalOpen, setIsContactFormModalOpen] = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
 
   const handleFindContact = async () => {
     if (!companyUrl.trim()) {
@@ -106,6 +111,12 @@ export default function Home() {
       setFormProgress(100); // Complete
 
       setFormResult(data);
+
+      // Open modal with editable form data if extraction was successful
+      if (data.formStructure && data.formStructure.fields.length > 0) {
+        setEditableFormData(data.formStructure);
+        setIsModalOpen(true);
+      }
     } catch (error) {
       setFormProgress(100);
       setFormResult({
@@ -113,6 +124,260 @@ export default function Home() {
       });
     } finally {
       setLoadingForm(false);
+    }
+  };
+
+  const handleFieldUpdate = (index: number, field: string, value: any) => {
+    if (!editableFormData) return;
+
+    const updatedFields = [...editableFormData.fields];
+    updatedFields[index] = {
+      ...updatedFields[index],
+      [field]: value,
+    };
+
+    setEditableFormData({
+      ...editableFormData,
+      fields: updatedFields,
+    });
+  };
+
+  const handleAddOption = (fieldIndex: number) => {
+    if (!editableFormData) return;
+
+    const updatedFields = [...editableFormData.fields];
+    const currentOptions = updatedFields[fieldIndex].options || [];
+    updatedFields[fieldIndex] = {
+      ...updatedFields[fieldIndex],
+      options: [...currentOptions, ""],
+    };
+
+    setEditableFormData({
+      ...editableFormData,
+      fields: updatedFields,
+    });
+  };
+
+  const handleRemoveOption = (fieldIndex: number, optionIndex: number) => {
+    if (!editableFormData) return;
+
+    const updatedFields = [...editableFormData.fields];
+    const currentOptions = updatedFields[fieldIndex].options || [];
+    updatedFields[fieldIndex] = {
+      ...updatedFields[fieldIndex],
+      options: currentOptions.filter((_, idx) => idx !== optionIndex),
+    };
+
+    setEditableFormData({
+      ...editableFormData,
+      fields: updatedFields,
+    });
+  };
+
+  const handleUpdateOption = (fieldIndex: number, optionIndex: number, value: string) => {
+    if (!editableFormData) return;
+
+    const updatedFields = [...editableFormData.fields];
+    const currentOptions = [...(updatedFields[fieldIndex].options || [])];
+    currentOptions[optionIndex] = value;
+    updatedFields[fieldIndex] = {
+      ...updatedFields[fieldIndex],
+      options: currentOptions,
+    };
+
+    setEditableFormData({
+      ...editableFormData,
+      fields: updatedFields,
+    });
+  };
+
+  const handleSaveFormData = () => {
+    if (!editableFormData) return;
+
+    // Update the formResult with the edited data
+    setFormResult({
+      formStructure: editableFormData,
+    });
+
+    message.success("フォーム情報が保存されました");
+    setIsModalOpen(false);
+  };
+
+  const handleModalCancel = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleOpenContactForm = () => {
+    if (!formResult?.formStructure) {
+      message.warning("先にフォーム情報を抽出してください");
+      return;
+    }
+    // Initialize form values
+    const initialValues: Record<string, any> = {};
+    formResult.formStructure.fields.forEach(field => {
+      initialValues[field.name] = "";
+    });
+    setFormValues(initialValues);
+    setIsContactFormModalOpen(true);
+  };
+
+  const handleFormValueChange = (fieldName: string, value: any) => {
+    setFormValues(prev => ({
+      ...prev,
+      [fieldName]: value,
+    }));
+  };
+
+  const handleContactFormSubmit = () => {
+    if (!formResult?.formStructure) return;
+
+    // Validate required fields
+    const missingFields: string[] = [];
+    formResult.formStructure.fields.forEach(field => {
+      if (field.required && !formValues[field.name]) {
+        missingFields.push(field.label || field.name);
+      }
+    });
+
+    if (missingFields.length > 0) {
+      message.error(`以下の必須項目を入力してください: ${missingFields.join(", ")}`);
+      return;
+    }
+
+    // Show success message with filled data
+    console.log("Form submitted with values:", formValues);
+    message.success("フォームが送信されました！");
+    setIsContactFormModalOpen(false);
+  };
+
+  const handleContactFormCancel = () => {
+    setIsContactFormModalOpen(false);
+  };
+
+  // Helper function to render form fields based on type
+  const renderFormField = (field: FormField) => {
+    const commonProps = {
+      value: formValues[field.name] || "",
+      placeholder: field.placeholder,
+    };
+
+    switch (field.type) {
+      case "textarea":
+        return (
+          <TextArea
+            {...commonProps}
+            onChange={(e) => handleFormValueChange(field.name, e.target.value)}
+            rows={4}
+          />
+        );
+
+      case "select":
+        return (
+          <Select
+            value={formValues[field.name] || undefined}
+            onChange={(value) => handleFormValueChange(field.name, value)}
+            placeholder={field.placeholder}
+            className="w-full"
+            options={field.options?.map(opt => ({ value: opt, label: opt }))}
+          />
+        );
+
+      case "checkbox":
+        if (field.options && field.options.length > 0) {
+          // Multiple checkboxes
+          return (
+            <Checkbox.Group
+              value={formValues[field.name] || []}
+              onChange={(values) => handleFormValueChange(field.name, values)}
+              options={field.options}
+            />
+          );
+        } else {
+          // Single checkbox
+          return (
+            <Checkbox
+              checked={formValues[field.name] || false}
+              onChange={(e) => handleFormValueChange(field.name, e.target.checked)}
+            >
+              {field.label}
+            </Checkbox>
+          );
+        }
+
+      case "radio":
+        return (
+          <Input.Group>
+            {field.options?.map((option, idx) => (
+              <div key={idx} className="mb-2">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name={field.name}
+                    value={option}
+                    checked={formValues[field.name] === option}
+                    onChange={(e) => handleFormValueChange(field.name, e.target.value)}
+                    className="mr-2"
+                  />
+                  {option}
+                </label>
+              </div>
+            ))}
+          </Input.Group>
+        );
+
+      case "email":
+        return (
+          <Input
+            {...commonProps}
+            type="email"
+            onChange={(e) => handleFormValueChange(field.name, e.target.value)}
+          />
+        );
+
+      case "tel":
+        return (
+          <Input
+            {...commonProps}
+            type="tel"
+            onChange={(e) => handleFormValueChange(field.name, e.target.value)}
+          />
+        );
+
+      case "number":
+        return (
+          <Input
+            {...commonProps}
+            type="number"
+            onChange={(e) => handleFormValueChange(field.name, e.target.value)}
+          />
+        );
+
+      case "url":
+        return (
+          <Input
+            {...commonProps}
+            type="url"
+            onChange={(e) => handleFormValueChange(field.name, e.target.value)}
+          />
+        );
+
+      case "date":
+        return (
+          <Input
+            {...commonProps}
+            type="date"
+            onChange={(e) => handleFormValueChange(field.name, e.target.value)}
+          />
+        );
+
+      default:
+        // text and other types
+        return (
+          <Input
+            {...commonProps}
+            onChange={(e) => handleFormValueChange(field.name, e.target.value)}
+          />
+        );
     }
   };
 
@@ -320,6 +585,18 @@ export default function Home() {
                           送信ボタン: {formResult.formStructure.submitButton}
                         </Paragraph>
                       )}
+
+                      {/* Button to open contact form modal */}
+                      <div className="mt-4">
+                        <Button
+                          type="primary"
+                          size="large"
+                          onClick={handleOpenContactForm}
+                          style={{ backgroundColor: '#9333ea' }}
+                        >
+                          フォームを開く
+                        </Button>
+                      </div>
                     </div>
                   ) : formResult.formStructure && formResult.formStructure.fields.length === 0 ? (
                     <Paragraph className="text-sm text-yellow-600 dark:text-yellow-400">
@@ -377,6 +654,242 @@ export default function Home() {
           className="bg-white dark:bg-gray-800 rounded-lg shadow-lg"
         />
       </div>
+
+      {/* Modal for editing form fields */}
+      <Modal
+        title="フォーム情報を編集"
+        open={isModalOpen}
+        onOk={handleSaveFormData}
+        onCancel={handleModalCancel}
+        width={900}
+        okText="保存"
+        cancelText="キャンセル"
+      >
+        {editableFormData && (
+          <div className="space-y-4 max-h-[600px] overflow-y-auto py-4">
+            <Paragraph className="text-gray-600 dark:text-gray-400 mb-4">
+              抽出されたフォームフィールドを編集できます。各フィールドの情報を確認・修正してください。
+            </Paragraph>
+
+            {editableFormData.fields.map((field, index) => (
+              <div
+                key={index}
+                className="p-5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm"
+              >
+                <div className="mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+                  <Text strong className="text-base">
+                    フィールド {index + 1}
+                    {field.required && <span className="text-red-500 ml-2">*</span>}
+                  </Text>
+                  <Text className="text-xs text-gray-500 dark:text-gray-400 ml-3">
+                    ({field.type})
+                  </Text>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Label */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      ラベル
+                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <Input
+                      value={field.label || ""}
+                      onChange={(e) => handleFieldUpdate(index, "label", e.target.value)}
+                      placeholder="例: お名前、メールアドレス"
+                    />
+                  </div>
+
+                  {/* Name */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      名前 (name属性)
+                    </label>
+                    <Input
+                      value={field.name || ""}
+                      onChange={(e) => handleFieldUpdate(index, "name", e.target.value)}
+                      placeholder="例: name, email"
+                    />
+                  </div>
+
+                  {/* Type */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      タイプ
+                    </label>
+                    <Select
+                      value={field.type}
+                      onChange={(value) => handleFieldUpdate(index, "type", value)}
+                      className="w-full"
+                      options={[
+                        { value: "text", label: "text" },
+                        { value: "email", label: "email" },
+                        { value: "tel", label: "tel" },
+                        { value: "textarea", label: "textarea" },
+                        { value: "select", label: "select" },
+                        { value: "checkbox", label: "checkbox" },
+                        { value: "radio", label: "radio" },
+                        { value: "number", label: "number" },
+                        { value: "url", label: "url" },
+                        { value: "date", label: "date" },
+                      ]}
+                    />
+                  </div>
+
+                  {/* Placeholder */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      プレースホルダー
+                    </label>
+                    <Input
+                      value={field.placeholder || ""}
+                      onChange={(e) => handleFieldUpdate(index, "placeholder", e.target.value)}
+                      placeholder="例: 山田太郎"
+                    />
+                  </div>
+
+                  {/* Required */}
+                  <div className="col-span-2">
+                    <Checkbox
+                      checked={field.required}
+                      onChange={(e) => handleFieldUpdate(index, "required", e.target.checked)}
+                    >
+                      <span className="font-medium">必須フィールド</span>
+                    </Checkbox>
+                  </div>
+
+                  {/* Options (for select, radio, checkbox) */}
+                  {(field.type === "select" || field.type === "radio" || field.type === "checkbox") && (
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium mb-2">
+                        選択肢
+                        {(field.type === "radio" || (field.type === "checkbox" && field.options && field.options.length > 1)) && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                            (グループ化されたフィールド)
+                          </span>
+                        )}
+                      </label>
+                      <div className="space-y-2">
+                        {field.options && field.options.length > 0 ? (
+                          field.options.map((option, optionIndex) => (
+                            <div key={optionIndex} className="flex items-center gap-2">
+                              <span className="text-sm text-gray-500 dark:text-gray-400 w-8">
+                                {optionIndex + 1}.
+                              </span>
+                              <Input
+                                value={option}
+                                onChange={(e) => handleUpdateOption(index, optionIndex, e.target.value)}
+                                placeholder={`選択肢 ${optionIndex + 1}`}
+                                className="flex-1"
+                              />
+                              <Button
+                                type="text"
+                                danger
+                                size="small"
+                                onClick={() => handleRemoveOption(index, optionIndex)}
+                              >
+                                削除
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                            選択肢がありません
+                          </div>
+                        )}
+                        <Button
+                          type="dashed"
+                          onClick={() => handleAddOption(index)}
+                          className="w-full mt-2"
+                        >
+                          + 選択肢を追加
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Submit Button */}
+            {editableFormData.submitButton && (
+              <div className="p-5 border border-gray-200 dark:border-gray-700 rounded-lg bg-blue-50 dark:bg-blue-900/20 shadow-sm">
+                <div className="mb-3">
+                  <Text strong className="text-base">送信ボタン</Text>
+                </div>
+                <Input
+                  value={editableFormData.submitButton}
+                  onChange={(e) => setEditableFormData({
+                    ...editableFormData,
+                    submitButton: e.target.value,
+                  })}
+                  placeholder="例: 送信する"
+                />
+              </div>
+            )}
+
+            {/* Form Action and Method Info */}
+            {(editableFormData.action || editableFormData.method) && (
+              <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg text-sm">
+                <Text strong className="block mb-2">フォーム情報</Text>
+                {editableFormData.action && (
+                  <div className="mb-1">
+                    <span className="text-gray-600 dark:text-gray-400">送信先: </span>
+                    <span className="font-mono text-xs">{editableFormData.action}</span>
+                  </div>
+                )}
+                {editableFormData.method && (
+                  <div>
+                    <span className="text-gray-600 dark:text-gray-400">メソッド: </span>
+                    <span className="font-mono text-xs">{editableFormData.method.toUpperCase()}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal for displaying contact form */}
+      <Modal
+        title={`お問い合わせフォーム${contactPageUrl ? ` - ${new URL(contactPageUrl).hostname}` : ''}`}
+        open={isContactFormModalOpen}
+        onOk={handleContactFormSubmit}
+        onCancel={handleContactFormCancel}
+        width={700}
+        okText={formResult?.formStructure?.submitButton || "送信"}
+        cancelText="キャンセル"
+      >
+        {formResult?.formStructure && (
+          <div className="space-y-4 max-h-[600px] overflow-y-auto py-4">
+            <Paragraph className="text-gray-600 dark:text-gray-400 mb-4">
+              抽出されたお問い合わせフォームです。各フィールドに入力してください。
+            </Paragraph>
+
+            {formResult.formStructure.fields.map((field, index) => (
+              <div key={index} className="mb-4">
+                <label className="block text-sm font-medium mb-2">
+                  {field.label || field.name || `フィールド ${index + 1}`}
+                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                </label>
+                {renderFormField(field)}
+              </div>
+            ))}
+
+            {/* Display form action and method info */}
+            {(formResult.formStructure.action || formResult.formStructure.method) && (
+              <div className="mt-6 p-3 bg-gray-100 dark:bg-gray-800 rounded text-xs text-gray-600 dark:text-gray-400">
+                {formResult.formStructure.action && (
+                  <div>送信先: {formResult.formStructure.action}</div>
+                )}
+                {formResult.formStructure.method && (
+                  <div>メソッド: {formResult.formStructure.method.toUpperCase()}</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </main>
   );
 }
