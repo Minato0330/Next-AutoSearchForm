@@ -1,3 +1,9 @@
+import playwright from "playwright-aws-lambda";
+
+// In your function where you launch the browser:
+const browser = await playwright.launchChromium();
+const page = await browser.newPage();
+
 import { Page } from "playwright";
 
 export interface DynamicContentResult {
@@ -140,4 +146,6 @@ export async function waitForForms(
     return false;
   }
 }
+
+
 

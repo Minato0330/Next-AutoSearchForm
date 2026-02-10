@@ -1,4 +1,4 @@
-import { chromium, Browser, Page } from "playwright";
+import { chromium, Browser } from "playwright";
 import {
   CompanyInput,
   AnalysisResult,
@@ -132,25 +132,41 @@ export async function analyzeCompanies(
   config: AnalyzerConfig = DEFAULT_CONFIG,
   onProgress?: ProgressCallback
 ): Promise<AnalysisResult[]> {
-  const browser = await chromium.launch({ headless: config.headless });
-  const results: AnalysisResult[] = [];
-  const totalCompanies = companies.length;
-  let completedCount = 0;
-
-  // process up to 3 companies at a time to avoid overwhelming the system
-  const CONCURRENCY_LIMIT = 3;
+  let browser: Browser | null = null;
 
   try {
-    // split companies into batches
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-extensions',
+        '--disable-component-extensions-with-background-pages',
+      ],
+    });
+
+    const results: AnalysisResult[] = [];
+    const totalCompanies = companies.length;
+    let completedCount = 0;
+
+    const CONCURRENCY_LIMIT = 3;
+
     for (let i = 0; i < companies.length; i += CONCURRENCY_LIMIT) {
       const batch = companies.slice(i, i + CONCURRENCY_LIMIT);
 
-      // process batch in parallel with progress tracking
       const batchPromises = batch.map(async (company) => {
-        const result = await analyzeCompany(company, browser, config);
+        const result = await analyzeCompany(company, browser!, config);
         completedCount++;
 
-        // Call progress callback after each company completes
         if (onProgress) {
           onProgress(completedCount, totalCompanies, company.name);
         }
@@ -164,7 +180,18 @@ export async function analyzeCompanies(
 
     return results;
   } finally {
-    await browser.close();
+    if (browser) {
+      try {
+        const pages = browser.contexts().flatMap(context => context.pages());
+        await Promise.all(pages.map(page => page.close().catch(() => {})));
+        await browser.close();
+      } catch (error) {
+        try {
+          await browser.close();
+        } catch {
+        }
+      }
+    }
   }
 }
 
